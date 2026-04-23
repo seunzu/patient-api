@@ -1,6 +1,6 @@
-# inSpline-patient-api
+# patient-api
 
-> InSpline Take-Home Challenge BE-2  
+> Take-Home Challenge BE-2  
 > Stateless API + Graceful Lifecycle + IaC 배포
 
 ---
@@ -12,7 +12,7 @@ git clone https://github.com/seunzu/inspline-patient-api.git
 cd inspline-patient-api
 cp .env.example .env        # JWT_SECRET 입력
 docker-compose up --build
-\```
+```
 
 로컬 실행 후 → http://localhost:8080/swagger-ui.html
 
@@ -58,7 +58,7 @@ docker-compose up --build
 ## 환경변수
 
 | 변수명 | 설명 |
-|---|---|---|
+|---|---|
 | `JWT_SECRET` | Base64 인코딩된 JWT 서명 키 (`openssl rand -base64 32`) |
 | `JWT_EXPIRATION_MS` | JWT 만료 시간 ms (기본값: 3600000) |
 | `SPRING_PROFILES_ACTIVE` | `local` 또는 `prod` |

@@ -1,0 +1,83 @@
+name: CD (Deploy to EC2)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build Jar
+        run: ./gradlew bootJar --no-daemon
+
+      - name: Docker build & push
+        run: |
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/patient-api
+
+          docker login -u ${{ secrets.DOCKER_USERNAME }} \
+                       -p ${{ secrets.DOCKER_PASSWORD }}
+
+          docker buildx build \
+            --platform linux/amd64 \
+            -t $IMAGE:${{ github.sha }} \
+            -t $IMAGE:latest \
+            --push .
+
+      - name: Deploy (Blue-Green)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            IMAGE=${{ secrets.DOCKER_USERNAME }}/patient-api
+
+            echo "Pull latest image"
+            docker pull $IMAGE:latest
+
+            echo "Run new container (8081)"
+            docker run -d \
+              --name patient-api-new \
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+              -e AWS_REGION=${{ secrets.AWS_REGION }} \
+              -p 8081:8080 \
+              $IMAGE:latest
+
+            echo "Health check"
+            HEALTHY=false
+            for i in {1..10}; do
+              if curl -sf http://localhost:8081/health; then
+                echo "Healthy!"
+                HEALTHY=true
+                break
+              fi
+              echo "Attempt $i failed. Retrying in 3s..."
+              sleep 3
+            done
+
+            if [ "$HEALTHY" = false ]; then
+              echo "Health check failed. Rolling back."
+              docker stop patient-api-new
+              docker rm patient-api-new
+              exit 1
+            fi
+
+            echo "Stop old container"
+            docker stop patient-api || true
+            docker rm patient-api || true
+
+            echo "Switch container"
+            docker rename patient-api-new patient-api
+
+            echo "Remove dangling images"
+            docker image prune -f

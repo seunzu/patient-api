@@ -1,0 +1,2 @@
+dynamodb:
+  endpoint: ${DYNAMODB_ENDPOINT:}

@@ -40,19 +40,22 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             IMAGE=${{ secrets.DOCKER_USERNAME }}/patient-api
-
+            
             echo "Pull latest image"
             docker pull $IMAGE:latest
-
+            
             echo "Run new container (8081)"
             docker run -d \
               --name patient-api-new \
               -e SPRING_PROFILES_ACTIVE=prod \
               -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
               -e AWS_REGION=${{ secrets.AWS_REGION }} \
+              --log-driver=awslogs \
+              --log-opt awslogs-region=${{ secrets.AWS_REGION }} \
+              --log-opt awslogs-group=/inspline/patient-api \
               -p 8081:8080 \
               $IMAGE:latest
-
+            
             echo "Health check"
             HEALTHY=false
             for i in {1..10}; do
@@ -64,20 +67,33 @@ jobs:
               echo "Attempt $i failed. Retrying in 3s..."
               sleep 3
             done
-
+            
             if [ "$HEALTHY" = false ]; then
               echo "Health check failed. Rolling back."
               docker stop patient-api-new
               docker rm patient-api-new
               exit 1
             fi
-
+            
             echo "Stop old container"
             docker stop patient-api || true
             docker rm patient-api || true
-
-            echo "Switch container"
-            docker rename patient-api-new patient-api
-
+            
+            echo "Stop green container"
+            docker stop patient-api-new
+            docker rm patient-api-new
+            
+            echo "Run final container (8080)"
+            docker run -d \
+              --name patient-api \
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+              -e AWS_REGION=${{ secrets.AWS_REGION }} \
+              --log-driver=awslogs \
+              --log-opt awslogs-region=${{ secrets.AWS_REGION }} \
+              --log-opt awslogs-group=/inspline/patient-api \
+              -p 8080:8080 \
+              $IMAGE:latest
+            
             echo "Remove dangling images"
             docker image prune -f

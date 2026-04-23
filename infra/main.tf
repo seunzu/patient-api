@@ -45,8 +45,8 @@ resource "aws_security_group" "patient_api" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.my_ip]
-    description = "SSH - my IP only"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH"
   }
 
   egress {
@@ -113,7 +113,7 @@ resource "aws_iam_role_policy" "patient_api" {
           "logs:PutLogEvents",
           "logs:DescribeLogStreams"
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:*:log-group:${local.log_group}:*"
+        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
